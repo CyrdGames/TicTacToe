@@ -1,23 +1,38 @@
 package client;
 
+import game.TicTacToe;
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
 
-public class Client {
+public class Client extends Thread{
 
-    private static Socket client;
-    private static DataOutputStream outStream;
-    private static DataInputStream inStream;
+    private Socket client;
+    private DataOutputStream outStream;
+    private DataInputStream inStream;
     
-    public static void main(String[] args) {
+    private TicTacToe TTTGUI;
+    private SyncedRequest clientRequest;
+    
+    //TODO: share object to synchronize/wait on here (for communication with TicTacToe GUI
+    public Client(TicTacToe TTTGUI, SyncedRequest clientRequest){
+        this.TTTGUI = TTTGUI;
+        this.clientRequest = clientRequest;
+    }
+    
+    @Override
+    public void run() {
         
         client = null;
         outStream = null;
         inStream = null;
         
+        System.out.println("Testing Client");
+        
         try{
             //Setup
-            client = new Socket("192.168.12.110", 5555);
+            client = new Socket("192.168.12.105", 5555);
             
             System.out.println("Connected to port");
             
@@ -28,26 +43,63 @@ public class Client {
             
         } catch (UnknownHostException e){
             System.err.println(e.toString());
+            System.exit(1);
         } catch (IOException e){
             System.err.println(e.toString());
+            System.exit(1);
         }
         
-        if (client != null && outStream != null && inStream != null){
-            try{
-                String response;
-                for(int i = 0; i < 10; i++){
-                    System.out.println("Sending message "+ i);
-                    response = sendMsgnReceive("Test messages ["+ i + "]");
-                    //System.out.println("Total Response: "+ response);
+        try{
+            String response;
+            
+            Executors.newSingleThreadExecutor().execute(new Runnable() {
+                @Override
+                public void run() {
+                    String message;
+                    try{
+                        while (true){
+                            message = receiveMessages();
+                            System.out.println("Total server command: " + message);
+                            TTTGUI.reactToServer(message);
+                        }
+                    }
+                    catch (IOException e){
+                        System.err.println(e);
+                    }
                 }
-                if (!closeSocket()){
-                    System.err.println("Error closing socket");
+            });
+            
+            //TODO: properly wait for communication from either server and/or TicTacToe GUI
+            while(true){
+                this.clientRequest.lock.lock();
+                try{
+                    if (this.clientRequest.request == null){
+                        this.clientRequest.actionOccurred.await();
+                    }
+                    
+                    System.out.println("Condvar await complete: " + this.clientRequest.request);
+                    
+                    if (this.clientRequest.request.equals("/closeConnection")){
+                        break;
+                    }
+                    sendMessage(this.clientRequest.request);
+                    this.clientRequest.request = null;
+                } catch (InterruptedException e){
+                    System.err.println(e);
+                } finally{
+                    this.clientRequest.lock.unlock();
                 }
-                outStream.close();
-                inStream.close();
-            } catch (IOException e){
-                System.err.println(e.toString());
             }
+            /*
+            if (!closeSocket()){
+                System.err.println("Error closing socket");
+            }
+            */
+            outStream.close();
+            inStream.close();
+        } catch (IOException e){
+            System.err.println(e.toString());
+            System.exit(1);
         }
         
     }
@@ -58,13 +110,16 @@ public class Client {
      * @return String: Response from the server.
      * @throws IOException: Issue has occurred with writing bytes through the output stream to the server.
      */
-    private static String sendMsgnReceive(String msg) throws IOException{
-        outStream.writeBytes(msg + "\n");
-        
+    private void sendMessage(String message) throws IOException{
+        outStream.writeBytes(message + "\n");
+        //outStream.writeBytes((char)0 + "\n");
+    }
+    
+    private String receiveMessages() throws IOException{
         String response = "";
         String line;
         while ((line = inStream.readLine()) != null){
-            System.out.println("Server: "+ line);
+            System.out.println("Server line: "+ line);
             //Agreed protocol value for end of response (ASCII code 0; null character)
             if (line.charAt(0) == ((char)0)){
                 break;
@@ -74,7 +129,9 @@ public class Client {
         return response;
     }
     
-    private static boolean closeSocket() throws IOException{
+    /*
+    //TODO: fix up
+    public boolean closeSocket() throws IOException{
         for (int i = 0; i < 10; i++){
             if (sendMsgnReceive("/close").contains("/closeAck")){
                 client.close();
@@ -83,5 +140,5 @@ public class Client {
         }
         return false;
     }
-    
+    */
 }

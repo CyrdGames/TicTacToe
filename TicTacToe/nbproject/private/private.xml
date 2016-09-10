@@ -3,7 +3,11 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/Users/mk/Desktop/TicTacToe/TicTacToe/src/game/TicTacToe.java</file>
+            <file>file:/C:/Users/Victor/Desktop/Random%20Programming/NetBeans%20Work%20(using%20Java)/Network_Tests/git_src/TicTacToe/src/client/ClientManager.java</file>
+            <file>file:/C:/Users/Victor/Desktop/Random%20Programming/NetBeans%20Work%20(using%20Java)/Network_Tests/git_src/TicTacToe/src/game/GridListener.java</file>
+            <file>file:/C:/Users/Victor/Desktop/Random%20Programming/NetBeans%20Work%20(using%20Java)/Network_Tests/git_src/TicTacToe/src/client/Client.java</file>
+            <file>file:/C:/Users/Victor/Desktop/Random%20Programming/NetBeans%20Work%20(using%20Java)/Network_Tests/git_src/TicTacToe/src/game/TicTacToe.java</file>
+            <file>file:/C:/Users/Victor/Desktop/Random%20Programming/NetBeans%20Work%20(using%20Java)/Network_Tests/git_src/TicTacToe/src/client/SyncedRequest.java</file>
         </group>
     </open-files>
 </project-private>

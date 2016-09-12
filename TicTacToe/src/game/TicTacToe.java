@@ -5,6 +5,7 @@
  */
 package game;
 
+import client.SyncedRequest;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Frame;
@@ -18,6 +19,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
+import java.util.concurrent.locks.Lock;
 
 /**
  *
@@ -35,8 +37,15 @@ public class TicTacToe {
     private int turn = 0;
     private int cellWidth, cellHeight;
     private boolean canGo = true;
+    private SyncedRequest clientRequest;
+    //TODO: possibly obsolete; consider deletion
+    private String symbol;
+    private int playerNum;
     
-    public TicTacToe() {
+    public TicTacToe(SyncedRequest clientRequest) {
+        //TODO: may not need to keep a reference to request in TicTacToe class; used in GridListener
+        this.clientRequest = clientRequest;
+        
         frame = new JFrame("Tic Tac Toe");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new GridLayout(2,1));
@@ -61,7 +70,7 @@ public class TicTacToe {
                 TTTGrid[row][col].setFont(new Font("Serif", Font.PLAIN, 30));
                 TTTGrid[row][col].setSize(cellWidth, cellHeight);
                 TTTGrid[row][col].setActionCommand("Empty");
-                TTTGrid[row][col].addActionListener(new gridListener());
+                TTTGrid[row][col].addActionListener(new GridListener(row, col, this.clientRequest));
                 TTTGrid[row][col].setOpaque(true);
                 TTTGrid[row][col].setForeground(Color.BLACK);
                 TTTGrid[row][col].setBackground(Color.WHITE);
@@ -84,53 +93,59 @@ public class TicTacToe {
         frame.setExtendedState(Frame.MAXIMIZED_BOTH);
         frame.setVisible(true);
     }
-
-    class gridListener implements ActionListener {
-        @Override
-        public void actionPerformed(ActionEvent e) {            
-            for(int row = 0; row < numRows; row++) {
-                for(int col = 0; col < numCols; col++) {
-                    if(e.getSource().equals(TTTGrid[row][col]) && e.getActionCommand().equals("Empty") && canGo) {                    	
-                    	//alternate turns
-                    	turn += 1;
-                    	                    	
-                    	if(turn % 2 == 1) {
-                    		TTTGrid[row][col].setText("X");
-                    		game.placeTick(1, row, col);
-                    	} else {
-                    		TTTGrid[row][col].setText("O");
-                    		game.placeTick(2, row, col);
-                    	}     
-                    	
-                        TTTGrid[row][col].setActionCommand("Full");
-                        
-                        //check if game is over
-                        if(game.checkWinner() || turn == 9) {                        	
-                        	int winner = game.getWinner();
-                        	switch(winner) {
-                        		case 1:
-                        			label.setText("The winner is player X!");
-                        			break;
-                        		case 2:
-                        			label.setText("The winner is player O!");
-                        			break;
-                    			default: 
-                    				label.setText("Tie!");
-                    				break;
-                        	}
-                        	//disable future clicks
-                        	canGo = false;
-                        }
-                    }
+    
+    public void reactToServer(String serverMessage){
+        String[] serverCommand = serverMessage.split(" ");
+        switch(serverCommand[0]){
+            case "/setPlayer":
+                this.playerNum = Integer.parseInt(serverCommand[1]);
+                if (Integer.parseInt(serverCommand[2]) == 1){
+                    this.symbol = "X";
+                    label.setText("You are player " + this.playerNum + "; you are starting.");
+                } else {
+                    this.symbol = "O";
+                    label.setText("You are player " + this.playerNum + "; you must wait for the starting player.");
                 }
-            }
+                break;
+            case "/updateGame":
+                int row = Integer.parseInt(serverCommand[1]), column = Integer.parseInt(serverCommand[2]);
+                TTTGrid[row][column].setText(serverCommand[3]);
+                if(this.symbol.equals(serverCommand[3])){
+                    label.setText("Waiting for the other player's turn...");
+                } else{
+                    label.setText("It is currently your turn.");
+                }
+                break;
+            case "/denyPlacement":
+                label.setText("It is not your turn; wait for the other player to go.");
+                break;
+            case "/gameEnded":
+                int winner = Integer.parseInt(serverCommand[1]);
+                if (winner == 0){
+                    label.setText("You have tied!");
+                } else if (winner == this.playerNum){
+                    label.setText("Congratulations! You have won!");
+                } else{
+                    label.setText("Better luck next time! You have lost.");
+                }
+                this.clientRequest.lock.lock();
+                try{
+                    this.clientRequest.request = "/closeConnection";
+                    this.clientRequest.actionOccurred.signalAll();
+                } finally{
+                    this.clientRequest.lock.unlock();
+                }
+            default:
+                System.err.println("Unknown server command");
         }
     }
-    
+/*
+    //TODO: obsolete implementation
     private static void runGUI() {
         TicTacToe TTTGUI = new TicTacToe();
     }
 
+    //TODO: obsolete implementation
     public static void main(String[] args) {
         javax.swing.SwingUtilities.invokeLater(new Runnable() {
             @Override
@@ -139,70 +154,5 @@ public class TicTacToe {
             }
         });
     }
-}
-
-class TTT {
-
-	private int[][] board = new int[3][3];
-	private int winner = 0;
-	public boolean gameOver = false;
-		
-	public boolean checkWinner() {
-		if(checkCol() || checkRow() || checkDiag()) {
-			gameOver = true;
-		}
-		return gameOver;
-	}
-	
-	private boolean checkCol() {
-		for(int col = 0; col < board[0].length; col++) {
-			if(board[0][col] == board[1][col] && board[1][col] == board[2][col]) {				
-				if(board[0][col] > 0) {
-					winner = board[0][col];
-					return true;
-				}
-			}		
-		}
-		return false;	
-	}
-	
-	private boolean checkRow() {
-		for(int row = 0; row < board.length; row++) {
-			if(board[row][0] == board[row][1] && board[row][1] == board[row][2]) {
-				if(board[row][0] > 0) {
-					winner = board[row][0];
-					return true;
-				}
-			}		
-		}
-		return false;	
-	}
-	
-	private boolean checkDiag() {
-		if(board[0][0] > 0 && board[0][0] == board[1][1] && board[1][1] == board[2][2] || board[0][2] > 0 && board[0][2] == board[1][1] && board[1][1] == board[2][0]) {
-			if(board[1][1] > 0) {
-				winner = board[1][1];
-				return true;
-			}			
-		}		
-		return false;		
-	}
-	
-	/**
-	 * 
-	 * @param value = player number
-	 * @param row = row
-	 * @param col = column
-	 */
-	public void placeTick(int value, int row, int col) {
-		board[row][col] = value;
-	}
-	
-	/**
-	 * 
-	 * @return winner of game
-	 */
-	public int getWinner() {
-		return winner;
-	}
+    */
 }
